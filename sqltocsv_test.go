@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/joho/sqltocsv"
+	"github.com/loafoe/sqltocsv"
 )
 
 func init() {

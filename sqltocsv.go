@@ -6,6 +6,7 @@ package sqltocsv
 
 import (
 	"bytes"
+	"context"
 	"database/sql"
 	"encoding/csv"
 	"fmt"
@@ -45,10 +46,11 @@ type CsvPreProcessorFunc func(row []string, columnNames []string) (outputRow boo
 // There are a few settings you can override if you want to do
 // some fancy stuff to your CSV.
 type Converter struct {
-	Headers      []string // Column headers to use (default is rows.Columns())
-	WriteHeaders bool     // Flag to output headers in your CSV (default is true)
-	TimeFormat   string   // Format string for any time.Time values (default is time's default)
-	Delimiter    rune     // Delimiter to use in your CSV (default is comma)
+	Headers      []string        // Column headers to use (default is rows.Columns())
+	WriteHeaders bool            // Flag to output headers in your CSV (default is true)
+	TimeFormat   string          // Format string for any time.Time values (default is time's default)
+	Delimiter    rune            // Delimiter to use in your CSV (default is comma)
+	ctx          context.Context // Context to check for cancellations
 
 	rows            *sql.Rows
 	rowPreProcessor CsvPreProcessorFunc
@@ -57,6 +59,11 @@ type Converter struct {
 // SetRowPreProcessor lets you specify a CsvPreprocessorFunc for this conversion
 func (c *Converter) SetRowPreProcessor(processor CsvPreProcessorFunc) {
 	c.rowPreProcessor = processor
+}
+
+// SetContext sets the context to check
+func (c *Converter) SetContext(ctx context.Context) {
+	c.ctx = ctx
 }
 
 // String returns the CSV as a string in an fmt package friendly way
@@ -125,6 +132,12 @@ func (c Converter) Write(writer io.Writer) error {
 	valuePtrs := make([]interface{}, count)
 
 	for rows.Next() {
+		select {
+		case <-c.ctx.Done():
+			csvWriter.Flush()
+			return nil
+		default:
+		}
 		row := make([]string, count)
 
 		for i, _ := range columnNames {
@@ -178,12 +191,13 @@ func (c Converter) Write(writer io.Writer) error {
 }
 
 // New will return a Converter which will write your CSV however you like
-// but will allow you to set a bunch of non-default behaivour like overriding
+// but will allow you to set a bunch of non-default behaviour like overriding
 // headers or injecting a pre-processing step into your conversion
 func New(rows *sql.Rows) *Converter {
 	return &Converter{
 		rows:         rows,
 		WriteHeaders: true,
 		Delimiter:    ',',
+		ctx:          context.Background(),
 	}
 }
