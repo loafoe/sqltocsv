@@ -134,8 +134,7 @@ func (c Converter) Write(writer io.Writer) error {
 	for rows.Next() {
 		select {
 		case <-c.ctx.Done():
-			csvWriter.Flush()
-			return nil
+			return c.ctx.Err()
 		default:
 		}
 		row := make([]string, count)
